@@ -30,22 +30,36 @@ async def verify_face_endpoint(
     aadhaar_image: UploadFile = File(...)
 ):
     with tempfile.TemporaryDirectory() as temp_dir:
-        webcam_path = os.path.join(temp_dir, "webcam.jpg")
-        aadhaar_path = os.path.join(temp_dir, "aadhaar.jpg")
-        
         try:
+            webcam_path = os.path.join(temp_dir, "webcam_original.jpg")
+            aadhaar_path = os.path.join(temp_dir, "aadhaar_original.jpg")
+            
             with open(webcam_path, "wb") as buffer:
                 shutil.copyfileobj(webcam_image.file, buffer)
-            
             with open(aadhaar_path, "wb") as buffer:
                 shutil.copyfileobj(aadhaar_image.file, buffer)
             
-            result = verify_faces(webcam_path, aadhaar_path)
+            webcam_processed = preprocess_image(webcam_path)
+            
+            aadhaar_face = extract_aadhaar_face(aadhaar_path)
+            
+            processed_webcam_path = os.path.join(temp_dir, "webcam_processed.jpg")
+            processed_aadhaar_path = os.path.join(temp_dir, "aadhaar_processed.jpg")
+            
+            cv2.imwrite(processed_webcam_path, cv2.cvtColor(webcam_processed, cv2.COLOR_RGB2BGR))
+            cv2.imwrite(processed_aadhaar_path, cv2.cvtColor(aadhaar_face, cv2.COLOR_RGB2BGR))
+            
+            result = verify_faces(processed_webcam_path, processed_aadhaar_path)
             
             if "error" in result:
                 raise HTTPException(status_code=400, detail=result["error"])
-                
+            
+            del webcam_processed, aadhaar_face
+            gc.collect()
+            
             return result
             
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
+        finally:
+            gc.collect()
