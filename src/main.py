@@ -2,9 +2,12 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
+import numpy as np
 import os
 import tempfile
-from face_verify import verify_faces  
+import cv2
+import gc
+from face_verify import verify_faces, preprocess_image, extract_aadhaar_face
 
 app = FastAPI()
 
@@ -39,27 +42,27 @@ async def verify_face_endpoint(
             with open(aadhaar_path, "wb") as buffer:
                 shutil.copyfileobj(aadhaar_image.file, buffer)
             
-            webcam_processed = preprocess_image(webcam_path)
+            webcam_img = cv2.imread(webcam_path)
+            aadhaar_img = cv2.imread(aadhaar_path)
             
-            aadhaar_face = extract_aadhaar_face(aadhaar_path)
+            webcam_img = webcam_img.astype(np.float32) / 255.0
+            aadhaar_img = aadhaar_img.astype(np.float32) / 255.0
+            
+            webcam_img = cv2.cvtColor(webcam_img, cv2.COLOR_BGR2RGB)
+            aadhaar_img = cv2.cvtColor(aadhaar_img, cv2.COLOR_BGR2RGB)
             
             processed_webcam_path = os.path.join(temp_dir, "webcam_processed.jpg")
             processed_aadhaar_path = os.path.join(temp_dir, "aadhaar_processed.jpg")
             
-            cv2.imwrite(processed_webcam_path, cv2.cvtColor(webcam_processed, cv2.COLOR_RGB2BGR))
-            cv2.imwrite(processed_aadhaar_path, cv2.cvtColor(aadhaar_face, cv2.COLOR_RGB2BGR))
+            cv2.imwrite(processed_webcam_path, (webcam_img * 255).astype(np.uint8))
+            cv2.imwrite(processed_aadhaar_path, (aadhaar_img * 255).astype(np.uint8))
             
             result = verify_faces(processed_webcam_path, processed_aadhaar_path)
             
             if "error" in result:
                 raise HTTPException(status_code=400, detail=result["error"])
             
-            del webcam_processed, aadhaar_face
-            gc.collect()
-            
             return result
             
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
-        finally:
-            gc.collect()

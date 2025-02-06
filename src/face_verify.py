@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from PIL import Image
 import io
+import os
 import gc  
 
 def preprocess_image(image_path, max_size=800):
@@ -24,12 +25,19 @@ def preprocess_image(image_path, max_size=800):
 def extract_aadhaar_face(aadhaar_image_path):
     """Extract face from Aadhaar card with optimized processing"""
     try:
-        
         img = preprocess_image(aadhaar_image_path)
         
         gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'lbpcascade_frontalface.xml')
+        cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        
+        if not os.path.exists(cascade_path):
+            raise Exception(f"Cascade classifier file not found at {cascade_path}")
+            
+        face_cascade = cv2.CascadeClassifier(cascade_path)
+        
+        if face_cascade.empty():
+            raise Exception("Error loading cascade classifier")
         
         faces = face_cascade.detectMultiScale(
             gray,
@@ -55,17 +63,17 @@ def extract_aadhaar_face(aadhaar_image_path):
     except Exception as e:
         raise Exception(f"Face extraction failed: {str(e)}")
 
+
 def verify_faces(webcam_image_path, aadhaar_image_path):
-    """Verify faces with optimized memory usage"""
+    """Verify faces with FaceNet for better accuracy and lower memory usage"""
     try:
-        
         result = DeepFace.verify(
             img1_path=webcam_image_path,
             img2_path=aadhaar_image_path,
             detector_backend="ssd",  
-            model_name="VGG-Face",   
-            distance_metric="cosine",
-            enforce_detection=True,
+            model_name="Facenet",    
+            distance_metric="euclidean",  
+            enforce_detection=False,
             align=True
         )
         
@@ -75,15 +83,15 @@ def verify_faces(webcam_image_path, aadhaar_image_path):
             "verified": result["verified"],
             "distance_score": result["distance"],
             "threshold": result["threshold"],
-            "model": "VGG-Face",
+            "model": "Facenet",
             "detector": "SSD"
         }
         
     except Exception as e:
         return {"error": str(e)}
 
+
 if __name__ == "__main__":
-    import os
     
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     webcam_path = os.path.join(BASE_DIR, "images", "curr1.jpg")
