@@ -3,73 +3,105 @@ import cv2
 import numpy as np
 from PIL import Image
 import io
+import gc  
+
+def preprocess_image(image_path, max_size=800):
+    """Optimize image size before processing"""
+    img = cv2.imread(image_path)
+    if img is None:
+        raise Exception(f"Could not read image at {image_path}")
+    
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    height, width = img.shape[:2]
+    if height > max_size or width > max_size:
+        scale = max_size / max(height, width)
+        new_size = (int(width * scale), int(height * scale))
+        img = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
+    
+    return img
 
 def extract_aadhaar_face(aadhaar_image_path):
-   
-    img = cv2.imread(aadhaar_image_path)
-    
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-    
-    if len(faces) == 0:
-        raise Exception("No face detected on Aadhaar card")
-    
-    x, y, w, h = faces[0]
-    
-    
-    padding = 20
-    face_img = img[max(0, y-padding):min(img.shape[0], y+h+padding), 
-                   max(0, x-padding):min(img.shape[1], x+w+padding)]
-    
-    return face_img
-
-def verify_faces(webcam_image_path, aadhaar_image_path):
+    """Extract face from Aadhaar card with optimized processing"""
     try:
         
-        aadhaar_face = extract_aadhaar_face(aadhaar_image_path)
+        img = preprocess_image(aadhaar_image_path)
         
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'lbpcascade_frontalface.xml')
+        
+        faces = face_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=4,
+            minSize=(30, 30),
+            flags=cv2.CASCADE_SCALE_IMAGE
+        )
+        
+        if len(faces) == 0:
+            raise Exception("No face detected on Aadhaar card")
+        
+        x, y, w, h = faces[0]
+        padding = 20
+        face_img = img[max(0, y-padding):min(img.shape[0], y+h+padding), 
+                      max(0, x-padding):min(img.shape[1], x+w+padding)]
+        
+        del img, gray
+        gc.collect()
+        
+        return face_img
+        
+    except Exception as e:
+        raise Exception(f"Face extraction failed: {str(e)}")
+
+def verify_faces(webcam_image_path, aadhaar_image_path):
+    """Verify faces with optimized memory usage"""
+    try:
         
         result = DeepFace.verify(
             img1_path=webcam_image_path,
             img2_path=aadhaar_image_path,
-            detector_backend="retinaface",
-            model_name="ArcFace",
+            detector_backend="ssd",  
+            model_name="VGG-Face",   
             distance_metric="cosine",
-            enforce_detection=True
+            enforce_detection=True,
+            align=True
         )
         
-       
-        metrics = {
+        gc.collect()
+        
+        return {
             "verified": result["verified"],
             "distance_score": result["distance"],
             "threshold": result["threshold"],
-            "model": "ArcFace",
-            "detector": "RetinaFace"
+            "model": "VGG-Face",
+            "detector": "SSD"
         }
-        
-        return metrics
         
     except Exception as e:
         return {"error": str(e)}
-
 
 if __name__ == "__main__":
     import os
     
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     webcam_path = os.path.join(BASE_DIR, "images", "curr1.jpg")
-    aadhaar_path = os.path.join(BASE_DIR, "images", "aadhaar.png") 
-
-    if not os.path.exists(webcam_path):
-        print(f"Error: Webcam image not found at {webcam_path}")
-    if not os.path.exists(aadhaar_path):
-        print(f"Error: Aadhaar image not found at {aadhaar_path}") 
+    aadhaar_path = os.path.join(BASE_DIR, "images", "aadhaar.png")
     
-    result = verify_faces(webcam_path, aadhaar_path)
-    print("\nVerification Results:")
-    print("-------------------")
-    for key, value in result.items():
-        print(f"{key}: {value}")
+    try:
+        for path in [webcam_path, aadhaar_path]:
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"Image not found at {path}")
+        
+        result = verify_faces(webcam_path, aadhaar_path)
+        
+        print("\nVerification Results:")
+        print("-------------------")
+        for key, value in result.items():
+            print(f"{key}: {value}")
+            
+    except Exception as e:
+        print(f"Error: {str(e)}")
+    finally:
+        gc.collect()
