@@ -5,6 +5,7 @@ import shutil
 import os
 import tempfile
 from face_verify import verify_faces  
+
 app = FastAPI()
 
 app.add_middleware(
@@ -14,6 +15,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Aadhaar Face Verification API"}
+
+@app.head("/")
+async def head_root():
+    return {"message": "Aadhaar Face Verification API is running"}
 
 @app.post("/verify-face/")
 async def verify_face_endpoint(
@@ -25,14 +34,12 @@ async def verify_face_endpoint(
         aadhaar_path = os.path.join(temp_dir, "aadhaar.jpg")
         
         try:
-            
             with open(webcam_path, "wb") as buffer:
                 shutil.copyfileobj(webcam_image.file, buffer)
             
             with open(aadhaar_path, "wb") as buffer:
                 shutil.copyfileobj(aadhaar_image.file, buffer)
             
-           
             result = verify_faces(webcam_path, aadhaar_path)
             
             if "error" in result:
