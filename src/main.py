@@ -3,6 +3,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import numpy as np
+import pickle
 import os
 import tempfile
 import cv2

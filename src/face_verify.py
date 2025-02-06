@@ -2,6 +2,7 @@ from deepface import DeepFace
 import cv2
 import numpy as np
 from PIL import Image
+import pickle
 import io
 import os
 import gc  
@@ -64,20 +65,23 @@ def extract_aadhaar_face(aadhaar_image_path):
         raise Exception(f"Face extraction failed: {str(e)}")
 
 
+from deepface import DeepFace
+import numpy as np
+
 def verify_faces(webcam_image_path, aadhaar_image_path):
-    """Verify faces with FaceNet for better accuracy and lower memory usage"""
     try:
+        # Configure DeepFace to use local weights
+        DeepFace.build_model("Facenet")
+        
         result = DeepFace.verify(
             img1_path=webcam_image_path,
             img2_path=aadhaar_image_path,
-            detector_backend="ssd",  
-            model_name="Facenet",    
-            distance_metric="euclidean",  
+            detector_backend="ssd",
+            model_name="Facenet",    # Use model_name instead of model
+            distance_metric="euclidean",
             enforce_detection=False,
             align=True
         )
-        
-        gc.collect()
         
         return {
             "verified": result["verified"],
@@ -89,6 +93,7 @@ def verify_faces(webcam_image_path, aadhaar_image_path):
         
     except Exception as e:
         return {"error": str(e)}
+
 
 
 if __name__ == "__main__":
